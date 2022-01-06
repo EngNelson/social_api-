@@ -1,5 +1,6 @@
 # from types import new_class
-from typing import Optional
+from enum import auto
+from typing import Optional, List
 from fastapi import FastAPI, Response, status, HTTPException, Depends
 from fastapi.params import Body
 from pydantic import BaseModel
@@ -8,28 +9,17 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 import time
 from sqlalchemy.orm import Session
-from . import model
-# from . import Base
+from sqlalchemy.sql.functions import mode
+from . import model, schema, utils
 from .database import engine, get_db
 
-model.Base.metadate.create_all(bind=engine)
+
+
+# model.Base.metadate.create_all(bind=engine)
 
 
 app = FastAPI()
 
-
-
-
-
-
-
-class Post(BaseModel):
-    title: str
-    content: str
-    published: bool = True
-    name: str
-    id: str
-    created_at: str
 
 while True:
     try:
@@ -63,46 +53,36 @@ def find_index_post(id):
 @app.get("/")
 def root():
     return {"message": "Welcome to my api and i love python"}
-
-@app.get("/sqlalchemy")
-def test_posts(db: Session = Depends(get_db)):
-
-    posts = db.query(model.Post).all()
-    return{"data": posts}    
+   
 
 
-@app.get("/posts")
-def get_posts():
+@app.get("/posts", response_model=List[schema.Post])
+def get_posts(db: Session = Depends(get_db)):
     # cursor.execute("""SELECT * FROM posts """)
     # posts = cursor.fetchall()
     # # print(posts)
-    return{"data": posts}
+
+    posts = db.query(model.Post).all()
+    return posts
 
 
-@app.post("/posts", status_code=status.HTTP_201_CREATED)
-def create_posts(post: Post, db: Session = Depends(get_db)):
+@app.post("/posts", status_code=status.HTTP_201_CREATED, response_model=schema.Post)
+def create_posts(post: schema.PostCreate, db: Session = Depends(get_db)):
    
-    # cursor.execute(""" INSERT INTO posts (title, content, published, name, id, created_at) 
-    # VALUES (%s, %s, %s, %s, %s, %s) RETURNING
-    # * """,
-    #         (post.title,post.content, post.published, post.name, post.id, post.created_at))
-    # new_post = cursor.fetchone()
+ 
 
-    # conn.commit()
-    # print(**post.dict())
     new_post = model.Post(**post.dict())
-
     db.add(new_post)
     db.commit()
     db.refresh(new_post)
 
 
-    return{"data": new_post}
+    return new_post
 
 
 
 
-@app.get("/posts/{id}")
+@app.get("/posts/{id}", response_model=schema.Post)
 def get_post(id: int, db: Session = Depends(get_db)):
     # cursor.execute("""SELECT * from posts WHERE id = %s """, (str(id)))
     # post  = cursor.fetchone()
@@ -114,7 +94,8 @@ def get_post(id: int, db: Session = Depends(get_db)):
     if not post:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                              detail=f"post with id: {id}was not found")
-    return {"post_detail":  post }
+    return  post 
+
 
 @app.delete("/posts/{id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_post(id: int, db: Session = Depends(get_db)):
@@ -136,8 +117,8 @@ def delete_post(id: int, db: Session = Depends(get_db)):
    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@app.put("/posts/{id}")
-def update_post(id: int, updated_post:Post, db: Session = Depends(get_db)):
+@app.put("/posts/{id}", response_model=schema.Post)
+def update_post(id: int, updated_post: schema.PostCreate, db: Session = Depends(get_db)):
 
     # print(id)
     # cursor.execute("""UPDATE posts SET title = %s, content = %s, published = %s WHERE id = %s RETURNING *
@@ -166,6 +147,23 @@ def update_post(id: int, updated_post:Post, db: Session = Depends(get_db)):
 
     
 
-    return{"data": post_query.first()}
+    return post_query.first()
+
+
+@app.post("/users", status_code=status.HTTP_201_CREATED, response_model=schema.UserOut)
+def create_user(user: schema.UserCreate, db: Session = Depends(get_db)):
+
+       #hash the password -user.password
+    
+    hashed_password =  utils.hash(user.password)
+    user.password = hashed_password
+
+
+    new_user = model.User(**user.dict())
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    return new_user
 
 
