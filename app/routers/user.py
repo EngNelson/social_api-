@@ -15,6 +15,7 @@ def create_user(user: schema.UserCreate, db: Session = Depends(get_db)):
     
     hashed_password =  utils.hash(user.password)
     user.password = hashed_password
+   
 
 
     new_user = model.User(**user.dict())
@@ -24,7 +25,7 @@ def create_user(user: schema.UserCreate, db: Session = Depends(get_db)):
 
     return new_user
  
-@router.get('/{id}', response_model=schema.Userout)
+@router.get('/{id}', response_model=schema.UserOut)
 def get_user(id: int, db: Session = Depends(get_db)):
  user = db.query(model.User).filter(model.User.id == id).first()
  if not user:
